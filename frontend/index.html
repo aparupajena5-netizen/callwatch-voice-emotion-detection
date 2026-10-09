@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Callwatch — Voice Emotion Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14171a;
+    --panel: #1b1f24;
+    --panel-raised: #21262c;
+    --line: #2c333a;
+    --text: #e7e9ea;
+    --text-dim: #8d969e;
+    --amber: #f0a83c;
+    --amber-dim: #6b5127;
+    --green: #4caf7d;
+    --red: #d9584f;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height:100vh;
+    padding: 28px 20px 60px;
+  }
+  .wrap{max-width: 980px; margin: 0 auto;}
+
+  header{
+    display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px; margin-bottom: 28px;
+    flex-wrap: wrap; gap: 10px;
+  }
+  header h1{
+    font-size: 20px; font-weight: 600; margin:0; letter-spacing: 0.2px;
+  }
+  header h1 span{ color: var(--amber); }
+  .subtitle{ color: var(--text-dim); font-size: 13px; font-family: var(--mono); }
+
+  .grid{
+    display:grid;
+    grid-template-columns: 1.1fr 1.4fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px){ .grid{ grid-template-columns: 1fr; } }
+
+  .panel{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 22px;
+  }
+
+  /* --- Recorder panel --- */
+  .record-stage{
+    display:flex; flex-direction:column; align-items:center;
+    gap: 18px; padding: 10px 0 4px;
+  }
+  #mic-btn{
+    width: 108px; height: 108px; border-radius: 50%;
+    background: var(--panel-raised);
+    border: 2px solid var(--line);
+    color: var(--text);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition: border-color .15s, transform .1s;
+    position: relative;
+  }
+  #mic-btn:hover{ border-color: var(--amber-dim); }
+  #mic-btn:active{ transform: scale(0.97); }
+  #mic-btn.recording{
+    border-color: var(--red);
+    box-shadow: 0 0 0 6px rgba(217,88,79,0.12);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ box-shadow: 0 0 0 6px rgba(217,88,79,0.12); }
+    50%{ box-shadow: 0 0 0 12px rgba(217,88,79,0.05); }
+  }
+  #mic-btn svg{ width: 34px; height: 34px; }
+
+  .rec-status{ font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); text-align:center; min-height: 18px; }
+  .rec-status.live{ color: var(--red); }
+
+  canvas#meter{ width: 100%; height: 56px; display:block; }
+
+  .divider-label{
+    display:flex; align-items:center; gap: 10px;
+    color: var(--text-dim); font-family: var(--mono); font-size: 11px;
+    margin: 4px 0;
+  }
+  .divider-label::before, .divider-label::after{
+    content:''; flex:1; height:1px; background: var(--line);
+  }
+
+  .upload-row{ display:flex; gap: 10px; }
+  .upload-row input[type=file]{ display:none; }
+  .btn-secondary{
+    flex:1; text-align:center;
+    background: var(--panel-raised); border: 1px solid var(--line);
+    color: var(--text); border-radius: 6px; padding: 10px 12px;
+    font-family: var(--sans); font-size: 13px; cursor:pointer;
+  }
+  .btn-secondary:hover{ border-color: var(--amber-dim); }
+
+  #server-note{ font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 16px; line-height:1.6; }
+  #server-note b{ color: var(--text); }
+  .dot{ display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:6px; }
+  .dot.ok{ background: var(--green); }
+  .dot.bad{ background: var(--red); }
+
+  /* --- Readout panel --- */
+  .readout-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom: 14px;}
+  .readout-head h2{ font-size: 14px; margin:0; color: var(--text-dim); font-weight:500; letter-spacing:0.3px; }
+  #latency{ font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+  .top-emotion{
+    display:flex; align-items:baseline; gap: 12px; margin-bottom: 22px;
+  }
+  #emotion-label{ font-size: 30px; font-weight: 700; font-family: var(--mono); text-transform: capitalize; }
+  #confidence{ font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+
+  .bars{ display:flex; flex-direction:column; gap: 8px; margin-bottom: 26px; }
+  .bar-row{ display:grid; grid-template-columns: 76px 1fr 42px; align-items:center; gap: 10px; }
+  .bar-row .label{ font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); text-transform: capitalize; }
+  .bar-track{ height: 8px; background: var(--panel-raised); border-radius: 4px; overflow:hidden; border:1px solid var(--line);}
+  .bar-fill{ height:100%; background: var(--amber); width:0%; transition: width .35s ease; }
+  .bar-row .pct{ font-family: var(--mono); font-size: 11px; color: var(--text-dim); text-align:right; }
+
+  .gauges{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .gauge{
+    background: var(--panel-raised); border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 16px;
+  }
+  .gauge .g-label{ font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-bottom: 8px; text-transform:uppercase; letter-spacing:0.5px;}
+  .gauge .g-value{ font-family: var(--mono); font-size: 24px; font-weight:600; }
+  .gauge .g-band{ display:inline-block; margin-top:6px; font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.4px; }
+  .band-LOW{ background: rgba(76,175,125,0.15); color: var(--green); }
+  .band-MEDIUM{ background: rgba(240,168,60,0.15); color: var(--amber); }
+  .band-HIGH{ background: rgba(217,88,79,0.18); color: var(--red); }
+
+  .empty-state{ color: var(--text-dim); font-family: var(--mono); font-size: 12.5px; line-height: 1.7; padding: 30px 4px; }
+
+  footer{ text-align:center; margin-top: 30px; color: var(--text-dim); font-family: var(--mono); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Call<span>watch</span> — Voice Emotion Console</h1>
+    <div class="subtitle">MFCC → deep MLP → frustration / urgency</div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: capture -->
+    <div class="panel">
+      <div class="record-stage">
+        <button id="mic-btn" aria-label="Record">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+            <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5V6a3.5 3.5 0 0 0-7 0v5.5A3.5 3.5 0 0 0 12 15z"/>
+            <path d="M19 11a7 7 0 0 1-14 0"/>
+            <path d="M12 18v3"/>
+          </svg>
+        </button>
+        <div class="rec-status" id="rec-status">Tap to record ~2 seconds of speech</div>
+        <canvas id="meter"></canvas>
+      </div>
+
+      <div class="divider-label">or</div>
+      <div class="upload-row">
+        <label class="btn-secondary" for="file-input">Upload audio file</label>
+        <input type="file" id="file-input" accept="audio/*" />
+      </div>
+
+      <div id="server-note">
+        <span class="dot" id="status-dot"></span><span id="status-text">Checking backend…</span><br>
+        <b>Backend:</b> http://localhost:5000 — start it with <code>python app.py</code><br>
+        <b>Model:</b> deep MLP · 248-dim MFCC/delta/pitch features · 8 emotion classes
+      </div>
+    </div>
+
+    <!-- RIGHT: readout -->
+    <div class="panel">
+      <div class="readout-head">
+        <h2>LIVE READOUT</h2>
+        <span id="latency"></span>
+      </div>
+
+      <div id="empty-state" class="empty-state">
+        No clip analyzed yet.<br>
+        Record or upload a short voice clip to see the emotion breakdown,
+        and the derived frustration / urgency scores for this call.
+      </div>
+
+      <div id="results" style="display:none;">
+        <div class="top-emotion">
+          <div id="emotion-label">—</div>
+          <div id="confidence"></div>
+        </div>
+
+        <div class="bars" id="bars"></div>
+
+        <div class="gauges">
+          <div class="gauge">
+            <div class="g-label">Frustration</div>
+            <div class="g-value" id="frustration-value">—</div>
+            <span class="g-band" id="frustration-band"></span>
+          </div>
+          <div class="gauge">
+            <div class="g-label">Urgency</div>
+            <div class="g-value" id="urgency-value">—</div>
+            <span class="g-band" id="urgency-band"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Deep Learning project — Real-Time Emotion Detection in Voice</footer>
+</div>
+
+<script>
+const API_BASE = "http://localhost:5000";
+
+const micBtn = document.getElementById('mic-btn');
+const recStatus = document.getElementById('rec-status');
+const fileInput = document.getElementById('file-input');
+const meterCanvas = document.getElementById('meter');
+const meterCtx = meterCanvas.getContext('2d');
+const statusDot = document.getElementById('status-dot');
+const statusText = document.getElementById('status-text');
+
+let mediaRecorder, chunks = [], analyser, audioCtx, rafId, stream;
+let recording = false;
+
+function resizeCanvas(){
+  meterCanvas.width = meterCanvas.clientWidth * devicePixelRatio;
+  meterCanvas.height = meterCanvas.clientHeight * devicePixelRatio;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+async function checkHealth(){
+  try{
+    const r = await fetch(`${API_BASE}/api/health`);
+    const d = await r.json();
+    if(d.model_loaded){
+      statusDot.className = 'dot ok';
+      statusText.textContent = 'Backend connected, model loaded';
+    } else {
+      statusDot.className = 'dot bad';
+      statusText.textContent = 'Backend up, but no trained model found';
+    }
+  } catch(e){
+    statusDot.className = 'dot bad';
+    statusText.textContent = 'Backend not reachable — start app.py';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 8000);
+
+function drawMeter(){
+  if(!analyser) return;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteTimeDomainData(data);
+  const w = meterCanvas.width, h = meterCanvas.height;
+  meterCtx.clearRect(0,0,w,h);
+  meterCtx.beginPath();
+  meterCtx.strokeStyle = '#f0a83c';
+  meterCtx.lineWidth = 2 * devicePixelRatio;
+  const slice = w / data.length;
+  let x = 0;
+  for(let i=0;i<data.length;i++){
+    const v = data[i] / 128.0;
+    const y = (v * h) / 2;
+    if(i===0) meterCtx.moveTo(x,y); else meterCtx.lineTo(x,y);
+    x += slice;
+  }
+  meterCtx.stroke();
+  rafId = requestAnimationFrame(drawMeter);
+}
+
+async function startRecording(){
+  chunks = [];
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 1024;
+  source.connect(analyser);
+  drawMeter();
+
+  const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+  mediaRecorder = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+  mediaRecorder.onstop = onRecordingStop;
+  mediaRecorder.start();
+
+  recording = true;
+  micBtn.classList.add('recording');
+  recStatus.textContent = 'Recording… tap again to stop';
+  recStatus.classList.add('live');
+
+  // auto-stop after 4s as a safety net
+  setTimeout(() => { if(recording) stopRecording(); }, 4000);
+}
+
+function stopRecording(){
+  if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  if(stream) stream.getTracks().forEach(t => t.stop());
+  if(rafId) cancelAnimationFrame(rafId);
+  meterCtx.clearRect(0,0,meterCanvas.width, meterCanvas.height);
+  recording = false;
+  micBtn.classList.remove('recording');
+  recStatus.classList.remove('live');
+}
+
+async function onRecordingStop(){
+  const blob = new Blob(chunks, {type: chunks[0]?.type || 'audio/webm'});
+  recStatus.textContent = 'Analyzing…';
+  await sendClip(blob, 'clip.webm');
+}
+
+micBtn.addEventListener('click', () => {
+  if(!recording) startRecording().catch(err => {
+    recStatus.textContent = 'Mic access denied or unavailable.';
+  });
+  else stopRecording();
+});
+
+fileInput.addEventListener('change', async () => {
+  const f = fileInput.files[0];
+  if(!f) return;
+  recStatus.textContent = `Analyzing ${f.name}…`;
+  await sendClip(f, f.name);
+});
+
+async function sendClip(blob, filename){
+  const form = new FormData();
+  form.append('audio', blob, filename);
+  try{
+    const r = await fetch(`${API_BASE}/api/predict`, { method: 'POST', body: form });
+    if(!r.ok){
+      const err = await r.json().catch(()=>({error:'Unknown error'}));
+      recStatus.textContent = `Error: ${err.error || r.statusText}`;
+      recStatus.classList.remove('live');
+      return;
+    }
+    const d = await r.json();
+    renderResult(d);
+    recStatus.textContent = 'Tap to record ~2 seconds of speech';
+  } catch(e){
+    recStatus.textContent = 'Could not reach backend at localhost:5000';
+  }
+}
+
+function renderResult(d){
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+
+  document.getElementById('emotion-label').textContent = d.emotion;
+  document.getElementById('confidence').textContent = `${Math.round(d.confidence*100)}% confidence`;
+  document.getElementById('latency').textContent = `${d.inference_ms} ms`;
+
+  const bars = document.getElementById('bars');
+  bars.innerHTML = '';
+  const entries = Object.entries(d.probabilities).sort((a,b)=>b[1]-a[1]);
+  for(const [label, p] of entries){
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.innerHTML = `
+      <div class="label">${label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p*100).toFixed(1)}%"></div></div>
+      <div class="pct">${Math.round(p*100)}%</div>
+    `;
+    bars.appendChild(row);
+  }
+
+  document.getElementById('frustration-value').textContent = d.frustration_score.toFixed(2);
+  const fb = document.getElementById('frustration-band');
+  fb.textContent = d.frustration_band;
+  fb.className = `g-band band-${d.frustration_band}`;
+
+  document.getElementById('urgency-value').textContent = d.urgency_score.toFixed(2);
+  const ub = document.getElementById('urgency-band');
+  ub.textContent = d.urgency_band;
+  ub.className = `g-band band-${d.urgency_band}`;
+}
+</script>
+</body>
+</html>
